@@ -1,0 +1,240 @@
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+
+% ---------------------------------------------------------------
+% Pacotes
+% ---------------------------------------------------------------
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[brazil]{babel}
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{url}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning}
+
+\renewcommand{\IEEEkeywordsname}{Palavras-chave}
+
+\begin{document}
+
+% ---------------------------------------------------------------
+% Título
+% ---------------------------------------------------------------
+\title{Identificação de Espécies de Aves pelo Canto com Aprendizagem Profunda: CNNs, Redes Recorrentes e Modelos de Áudio Pré-Treinados\\[4pt]
+\large Proposta de Projeto --- CIN0040 Introdução à Aprendizagem Profunda}
+
+% ---------------------------------------------------------------
+% Autores
+% ---------------------------------------------------------------
+\author{
+\IEEEauthorblockN{Kaique Souza Bonfim}
+\IEEEauthorblockA{\textit{Centro de Informática (CIn)} \\
+\textit{Universidade Federal de Pernambuco}\\
+Recife, Brasil \\
+ksb3@cin.ufpe.br}
+\and
+\IEEEauthorblockN{Giovanny Lira de Araujo Cunha}
+\IEEEauthorblockA{\textit{Centro de Informática (CIn)} \\
+\textit{Universidade Federal de Pernambuco}\\
+Recife, Brasil \\
+glac2@cin.ufpe.br}
+\and
+\IEEEauthorblockN{Caio Henrique Araujo Braga}
+\IEEEauthorblockA{\textit{Centro de Informática (CIn)} \\
+\textit{Universidade Federal de Pernambuco}\\
+Recife, Brasil \\
+chab@cin.ufpe.br}
+}
+
+\maketitle
+
+% ---------------------------------------------------------------
+\begin{abstract}
+Esta proposta descreve um projeto de classificação de espécies de aves a partir de gravações de áudio. Os sinais são convertidos em espectrogramas log-Mel e classificados por quatro famílias de modelos: uma rede convolucional treinada do zero, uma rede convolucional-recorrente (CRNN) e dois modelos pré-treinados em larga escala no AudioSet (PANNs CNN14 e, se o orçamento computacional permitir, o Audio Spectrogram Transformer). Os dados vêm de um subconjunto de 15 a 20 espécies do desafio BirdCLEF. Além de comparar arquiteturas sob validação cruzada agrupada por gravação, o projeto investiga o efeito de técnicas de aumento de dados específicas para áudio e a robustez dos modelos a ruído ambiental, situação típica do monitoramento acústico em campo.
+\end{abstract}
+
+\begin{IEEEkeywords}
+bioacústica, classificação de áudio, espectrograma Mel, redes neurais convolucionais, CRNN, transferência de aprendizado, aumento de dados.
+\end{IEEEkeywords}
+
+\begin{figure*}[t]
+\centering
+\begin{tikzpicture}[
+  node distance=0.4cm,
+  box/.style={draw, rounded corners=2pt, align=center, minimum height=1.05cm,
+              text width=1.95cm, font=\footnotesize, fill=gray!8},
+  hl/.style={box, fill=blue!8},
+  arr/.style={-{Stealth[length=2mm]}, thick}
+]
+\node[box] (audio) {Gravação\\(BirdCLEF)};
+\node[box, right=of audio] (pre) {Reamostragem\\e janelas de 5\,s};
+\node[box, right=of pre] (mel) {Espectrograma\\log-Mel};
+\node[box, right=of mel] (aug) {Aumento de dados\\(somente treino)};
+\node[hl, right=of aug] (model) {Modelo\\M1--M4};
+\node[box, right=of model] (agg) {Agregação\\por gravação};
+\node[box, right=of agg] (out) {Espécie\\prevista};
+\draw[arr] (audio) -- (pre);
+\draw[arr] (pre) -- (mel);
+\draw[arr] (mel) -- (aug);
+\draw[arr] (aug) -- (model);
+\draw[arr] (model) -- (agg);
+\draw[arr] (agg) -- (out);
+\end{tikzpicture}
+\caption{Diagrama de blocos do \textit{pipeline} proposto. M1: CNN do zero; M2: CRNN; M3: PANNs CNN14; M4: AST (opcional).}
+\label{fig:pipeline}
+\end{figure*}
+
+% ---------------------------------------------------------------
+\section{Objetivos}
+
+\subsection{Objetivo geral}
+Desenvolver e avaliar comparativamente modelos de aprendizagem profunda para identificar a espécie de uma ave a partir de trechos curtos de sua vocalização, medindo o ganho trazido pela transferência de aprendizado e pelo aumento de dados em condições de ruído.
+
+\subsection{Objetivos específicos}
+\begin{enumerate}
+  \item Construir um \textit{pipeline} reprodutível no Google Colab que transforme gravações brutas em espectrogramas log-Mel segmentados.
+  \item Implementar e treinar uma CNN do zero e uma CRNN como modelos de referência.
+  \item Ajustar (\textit{fine-tuning}) modelos de áudio pré-treinados no AudioSet (PANNs CNN14 e, opcionalmente, AST).
+  \item Medir o efeito de SpecAugment, \textit{mixup} e mistura de ruído de fundo no desempenho.
+  \item Avaliar a robustez dos modelos sob diferentes razões sinal-ruído (SNR).
+\end{enumerate}
+
+\subsection{Hipóteses}
+\begin{itemize}
+  \item \textbf{H1:} modelos pré-treinados no AudioSet superam os modelos treinados do zero em F1-macro, especialmente nas espécies com poucas gravações.
+  \item \textbf{H2:} a modelagem temporal explícita da CRNN supera a CNN simples de mesmo porte.
+  \item \textbf{H3:} o aumento de dados específico para áudio reduz a queda de desempenho sob ruído (SNR $\leq 10$~dB).
+\end{itemize}
+
+% ---------------------------------------------------------------
+\section{Justificativa}
+
+O Brasil abriga quase duas mil espécies de aves, e o monitoramento acústico passivo, com gravadores deixados em campo, tornou-se uma ferramenta central para acompanhar a biodiversidade~\cite{stowell2022}. Esses gravadores produzem milhares de horas de áudio, inviáveis de anotar manualmente; sistemas como o BirdNET~\cite{kahl2021birdnet} mostram que redes profundas podem automatizar essa tarefa em escala.
+
+Do ponto de vista da disciplina, o problema reúne em um só projeto conceitos centrais de aprendizagem profunda: redes convolucionais aplicadas a representações tempo-frequência, redes recorrentes para dependências temporais e transferência de aprendizado. Ele traz ainda desafios realistas, como rótulos fracos, desbalanceamento de classes e ruído, que tornam a análise experimental mais rica do que em bases de imagens tradicionais.
+
+% ---------------------------------------------------------------
+\section{Metodologia}
+
+A Fig.~\ref{fig:pipeline} resume o fluxo proposto, detalhado nas subseções a seguir.
+
+
+\subsection{Base de dados}
+Será usado o conjunto de treino de uma edição recente do desafio BirdCLEF~\cite{kahl2021birdclef}, disponibilizado no Kaggle. Ele é composto por gravações focais de aves, em sua maioria provenientes do repositório colaborativo xeno-canto~\cite{xenocanto}, com rótulo de espécie e metadados como localização e avaliação de qualidade.
+
+Para caber nos limites do Colab, será selecionado um subconjunto de 15 a 20 espécies com maior número de gravações, limitado a cerca de 150 gravações por espécie e priorizando as de melhor qualidade. A análise exploratória vai descrever a distribuição de gravações e de duração por espécie, a faixa de frequência típica de cada canto e a proporção de trechos sem vocalização. Como alternativa, caso haja restrição de acesso, um subconjunto equivalente de espécies brasileiras pode ser obtido diretamente pela API pública do xeno-canto.
+
+\subsection{Pré-processamento}
+As gravações serão convertidas para mono e reamostradas a 32~kHz. Cada gravação é dividida em janelas de 5~s (com sobreposição de 50\% no treino), e janelas com energia muito baixa são descartadas para mitigar o problema de rótulos fracos, já que o rótulo vale para a gravação inteira e não para cada trecho.
+
+Para os modelos treinados do zero, cada janela vira um espectrograma log-Mel com 128 bandas entre 50~Hz e 14~kHz. Para os modelos pré-treinados, a extração segue a configuração original de cada um (PANNs: 32~kHz e 64 bandas~\cite{kong2020panns}; AST: 16~kHz e 128 bandas~\cite{gong2021ast}). Os espectrogramas serão pré-computados e salvos no Google Drive para acelerar o treino.
+
+\subsection{Modelos}
+A Tabela~\ref{tab:modelos} resume as arquiteturas comparadas.
+
+\begin{table}[htbp]
+\caption{Modelos comparados}
+\label{tab:modelos}
+\centering
+\footnotesize
+\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{3.3cm}l@{}}
+\toprule
+\textbf{ID} & \textbf{Arquitetura} & \textbf{Inicialização} \\
+\midrule
+M1 & CNN com 4 blocos Conv-BN-ReLU-Pool + \textit{pooling} global~\cite{hershey2017} & Aleatória \\
+M2 & CRNN: blocos convolucionais + GRU bidirecional no eixo do tempo~\cite{choi2017crnn} & Aleatória \\
+M3 & PANNs CNN14~\cite{kong2020panns} & AudioSet \\
+M4 & Audio Spectrogram Transformer~\cite{gong2021ast} (opcional) & AudioSet \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Todos os modelos terminam em uma camada \textit{softmax} sobre as espécies selecionadas e são treinados com entropia cruzada, otimizador AdamW e parada antecipada pelo F1-macro de validação. Na inferência, a predição de uma gravação é a média das probabilidades de suas janelas.
+
+\subsection{Aumento de dados}
+Serão avaliadas três técnicas, isoladas e combinadas: SpecAugment~\cite{park2019specaugment}, que mascara faixas de tempo e frequência; \textit{mixup}~\cite{zhang2018mixup}, que combina pares de exemplos e rótulos; e mistura de ruído de fundo com sons ambientais da base ESC-50~\cite{piczak2015esc} (chuva, vento, insetos).
+
+\subsection{Protocolo experimental}
+Para evitar vazamento de informação, todas as divisões são \textbf{agrupadas por gravação}: janelas de uma mesma gravação nunca aparecem em partições diferentes. Um conjunto de teste fixo (20\% das gravações, estratificado por espécie) é separado no início e usado apenas na avaliação final. Nos 80\% restantes aplica-se validação cruzada estratificada e agrupada com $k=5$.
+
+\begin{itemize}
+  \item \textbf{E1 -- Arquiteturas:} M1 a M4 sob a mesma configuração de aumento de dados, em validação cruzada de 5 \textit{folds} (testa H1 e H2).
+  \item \textbf{E2 -- Ablação de aumento de dados:} sem aumento, cada técnica isolada e todas combinadas, aplicadas ao melhor modelo do zero e ao melhor pré-treinado, em um \textit{fold} fixo com 3 sementes.
+  \item \textbf{E3 -- Robustez a ruído:} o conjunto de teste é corrompido com ruído da ESC-50 em SNR de 20, 10, 5 e 0~dB, e mede-se a queda de desempenho com e sem aumento de dados (testa H3).
+  \item \textbf{E4 -- Eficiência de dados:} treino com 25\%, 50\% e 100\% das gravações, comparando modelos do zero e pré-treinados.
+\end{itemize}
+
+\subsection{Métricas e análise}
+A métrica principal é o \textbf{F1-macro}, adequada ao desbalanceamento entre espécies. Também serão reportadas acurácia \textit{top-1} e \textit{top-3}, mAP (padrão em BirdCLEF e AudioSet) e matrizes de confusão. Os resultados são apresentados como média $\pm$ desvio-padrão entre \textit{folds} ou sementes. A análise qualitativa inclui mapas Grad-CAM sobre os espectrogramas, para verificar se o modelo foca no canto ou no ruído, e projeções t-SNE dos \textit{embeddings} para identificar espécies confundidas.
+
+\subsection{Recursos computacionais e bibliotecas}
+Todo o código será escrito em Python no Google Colab, com GPU NVIDIA T4 (cerca de 15~GB de memória). As principais bibliotecas são PyTorch e torchaudio (modelos e treino), librosa~\cite{mcfee2015librosa} (processamento de áudio), Hugging Face Transformers (AST), o código oficial do PANNs, scikit-learn (divisões e métricas) e matplotlib (visualizações). Para respeitar os limites de sessão do Colab, serão usados espectrogramas pré-computados, precisão mista (\textit{automatic mixed precision}) e \textit{checkpoints} salvos no Drive. O M4 é o modelo mais custoso e será treinado apenas se o orçamento permitir.
+
+% ---------------------------------------------------------------
+\section{Resultados esperados}
+Espera-se obter: (i) um \textit{pipeline} reprodutível de classificação de cantos de aves; (ii) uma comparação quantitativa entre CNN, CRNN e modelos pré-treinados; (iii) evidências sobre o papel do aumento de dados na robustez a ruído; e (iv) uma discussão sobre limitações, como rótulos fracos e confusão entre espécies de canto semelhante.
+
+% ---------------------------------------------------------------
+\section{Cronograma de atividades}
+O projeto se estende de 14/10 a 25/11/2026, dividido em seis semanas (Tabela~\ref{tab:crono}).
+
+\begin{table}[htbp]
+\caption{Cronograma (S1 = 14--20/10; S2 = 21--27/10; S3 = 28/10--03/11; S4 = 04--10/11; S5 = 11--17/11; S6 = 18--25/11)}
+\label{tab:crono}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{3.6cm}cccccc@{}}
+\toprule
+\textbf{Atividade} & \textbf{S1} & \textbf{S2} & \textbf{S3} & \textbf{S4} & \textbf{S5} & \textbf{S6} \\
+\midrule
+Proposta e revisão bibliográfica & $\bullet$ & & & & & \\
+Coleta dos dados e análise exploratória & $\bullet$ & $\bullet$ & & & & \\
+\textit{Pipeline} de pré-processamento & & $\bullet$ & & & & \\
+M1 e M2 com validação cruzada (E1) & & $\bullet$ & $\bullet$ & & & \\
+\textit{Fine-tuning} de M3 e M4 (E1) & & & $\bullet$ & $\bullet$ & & \\
+Ablação e robustez a ruído (E2, E3) & & & & $\bullet$ & $\bullet$ & \\
+Eficiência de dados (E4) e análises & & & & & $\bullet$ & \\
+Relatório IEEE e slides & & & & & $\bullet$ & $\bullet$ \\
+Entrega final (25/11) & & & & & & $\bullet$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Divisão de tarefas (proposta):} o Autor~1 fica responsável pelos modelos treinados do zero (M1 e M2); o Autor~2, pelos modelos pré-treinados (M3 e M4); e o Autor~3, pelos dados, pelo aumento de dados e pelos experimentos de robustez. A análise dos resultados, o relatório e a apresentação são feitos em conjunto.
+
+% ---------------------------------------------------------------
+\begin{thebibliography}{00}
+
+\bibitem{stowell2022} D. Stowell, ``Computational bioacoustics with deep learning: a review and roadmap,'' \textit{PeerJ}, vol. 10, e13152, 2022.
+
+\bibitem{kahl2021birdnet} S. Kahl, C. M. Wood, M. Eibl, and H. Klinck, ``BirdNET: A deep learning solution for avian diversity monitoring,'' \textit{Ecological Informatics}, vol. 61, 101236, 2021.
+
+\bibitem{kahl2021birdclef} S. Kahl \textit{et al.}, ``Overview of BirdCLEF 2021: Bird call identification in soundscape recordings,'' in \textit{Working Notes of CLEF 2021 -- Conference and Labs of the Evaluation Forum}, CEUR Workshop Proceedings, 2021.
+
+\bibitem{xenocanto} Xeno-canto Foundation, ``xeno-canto: Sharing wildlife sounds from around the world.'' [Online]. Disponível em: \url{https://xeno-canto.org}
+
+\bibitem{kong2020panns} Q. Kong, Y. Cao, T. Iqbal, Y. Wang, W. Wang, and M. D. Plumbley, ``PANNs: Large-scale pretrained audio neural networks for audio pattern recognition,'' \textit{IEEE/ACM Trans. Audio, Speech, Lang. Process.}, vol. 28, pp. 2880--2894, 2020.
+
+\bibitem{gong2021ast} Y. Gong, Y.-A. Chung, and J. Glass, ``AST: Audio Spectrogram Transformer,'' in \textit{Proc. Interspeech}, 2021, pp. 571--575.
+
+\bibitem{hershey2017} S. Hershey \textit{et al.}, ``CNN architectures for large-scale audio classification,'' in \textit{Proc. IEEE ICASSP}, 2017, pp. 131--135.
+
+\bibitem{choi2017crnn} K. Choi, G. Fazekas, M. Sandler, and K. Cho, ``Convolutional recurrent neural networks for music classification,'' in \textit{Proc. IEEE ICASSP}, 2017, pp. 2392--2396.
+
+\bibitem{park2019specaugment} D. S. Park \textit{et al.}, ``SpecAugment: A simple data augmentation method for automatic speech recognition,'' in \textit{Proc. Interspeech}, 2019, pp. 2613--2617.
+
+\bibitem{zhang2018mixup} H. Zhang, M. Cisse, Y. N. Dauphin, and D. Lopez-Paz, ``mixup: Beyond empirical risk minimization,'' in \textit{Proc. ICLR}, 2018.
+
+\bibitem{piczak2015esc} K. J. Piczak, ``ESC: Dataset for environmental sound classification,'' in \textit{Proc. 23rd ACM Int. Conf. Multimedia}, 2015, pp. 1015--1018.
+
+\bibitem{mcfee2015librosa} B. McFee \textit{et al.}, ``librosa: Audio and music signal analysis in Python,'' in \textit{Proc. 14th Python in Science Conf.}, 2015, pp. 18--25.
+
+\end{thebibliography}
+
+\end{document}
