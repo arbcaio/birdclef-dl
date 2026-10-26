@@ -71,6 +71,55 @@ final; nos 80% restantes, validação cruzada estratificada e agrupada com k = 5
 desvio entre folds ou sementes. Análise qualitativa com Grad-CAM nos espectrogramas e t-SNE dos
 embeddings.
 
+## Parte 1: dados, pipeline e M1
+
+Implementada em `src/birdclef/` e nos notebooks `01` a `03`.
+
+| Etapa | Onde | O que foi feito |
+|---|---|---|
+| Subconjunto | `dados.py`, `01_eda` | 20 espécies de aves com mais gravações do xeno-canto com nota ≥ 4; 150 gravações por espécie (3000 no total) |
+| Divisões | `dados.py`, `01_eda` | teste fixo de 20% (600 gravações) estratificado; 5 folds estratificados nos 80% restantes; semente 42; janelas herdam a partição da gravação |
+| log-Mel | `preproc.py`, `02_preprocessamento` | até 12 janelas de 5 s por gravação (passo 2,5 s), descarte de janelas 20 dB abaixo da mais forte; 128 × 313 em dB (ref. fixa), float16; 23 635 janelas |
+| Aumento | `aumento.py` | SpecAugment (2 máscaras de freq. ≤ 16 bandas, 2 de tempo ≤ 40 quadros), mixup (α = 0,4), ruído ESC-50 folds 1-4 (p = 0,5, SNR 0-20 dB, somado em potência) |
+| Teste ruidoso | `aumento.py` | teste refeito com ruído ESC-50 fold 5 (nunca visto no treino), misturado na forma de onda a 20, 10, 5 e 0 dB |
+| Treino | `treino.py` | sorteio com peso 1/(janelas da gravação), AdamW (lr 1e-3), cosseno, precisão mista, até 30 épocas, parada antecipada (paciência 6) pelo F1-macro de validação por gravação |
+| M1 | `modelos.py` | 4 blocos Conv3×3-BN-ReLU-MaxPool (32-64-128-256), média na frequência, média + máximo no tempo, dropout 0,3; 393 mil parâmetros |
+| E2, E3 | `experimentos.py`, `graficos.py`, `03_m1_experimentos` | ver Resultados |
+
+Para rodar localmente: `python -m birdclef.experimentos [e2|e3|tudo]` e `python -m birdclef.graficos`.
+
+### Resultados (M1, fold 0 de validação, 3 sementes, média ± desvio)
+
+Rodado numa RTX 3050 Laptop (4 GB): ~10 min por treino, 17-20 s por época.
+
+**E2: aumento de dados** (`resultados/e2/`)
+
+| Aumento | F1-macro val. | F1-macro teste | Top-1 teste | Top-3 teste | mAP teste |
+|---|---|---|---|---|---|
+| sem | 0,825 ± 0,011 | 0,844 ± 0,008 | 0,843 ± 0,009 | 0,944 ± 0,011 | 0,903 ± 0,003 |
+| SpecAugment | 0,846 ± 0,012 | 0,870 ± 0,009 | 0,870 ± 0,008 | 0,953 ± 0,003 | 0,921 ± 0,004 |
+| mixup | 0,836 ± 0,005 | 0,872 ± 0,002 | 0,872 ± 0,001 | 0,951 ± 0,005 | 0,923 ± 0,003 |
+| ruído | 0,858 ± 0,004 | **0,882 ± 0,006** | **0,881 ± 0,005** | **0,963 ± 0,003** | 0,928 ± 0,005 |
+| todas | 0,857 ± 0,001 | 0,876 ± 0,005 | 0,874 ± 0,004 | 0,959 ± 0,005 | **0,932 ± 0,007** |
+
+Cada técnica sozinha melhora o M1 em 2,6 a 3,8 pontos de F1-macro no teste; o ruído de fundo é a
+melhor isolada, e combinar as três não soma os ganhos (fica entre as isoladas, com o maior mAP).
+Com aumento, a maioria dos treinos ainda melhorava na época 30, então há espaço para treinar mais.
+
+**E3: robustez a ruído** (`resultados/e3/`): F1-macro no teste com ruído da ESC-50 (fold 5)
+
+| Aumento | limpo | 20 dB | 10 dB | 5 dB | 0 dB | queda limpo → 0 dB |
+|---|---|---|---|---|---|---|
+| sem | 0,844 | 0,847 | 0,837 | 0,818 | 0,786 | −5,8 pontos |
+| todas | 0,876 | 0,881 | 0,871 | 0,867 | 0,839 | −3,7 pontos |
+
+O aumento reduz a queda sob ruído forte (SNR ≤ 5 dB), a favor de H3: a 5 dB o modelo com aumento
+perde 0,9 ponto e o sem aumento perde 2,6. A 0 dB o modelo com aumento ainda fica no nível do sem
+aumento no teste limpo.
+
+![E2](resultados/e2/e2_f1_teste.png)
+![E3](resultados/e3/e3_snr.png)
+
 ## Estrutura do repositório
 
 ```
@@ -110,12 +159,14 @@ Kaggle não permitem redistribuir os dados. O `.gitignore` já bloqueia esses ar
 
 ## Divisão de tarefas
 
-| Quem | Responsável por |
-|---|---|
-| Kaique | M1 e M2 (modelos treinados do zero) |
-| Giovanny | M3 e M4 (modelos pré-treinados) |
-| Caio | dados, aumento de dados e experimentos de robustez (E2, E3) |
-| Todos | análise dos resultados, relatório e apresentação |
+O grupo ficou com duas pessoas (o professor pede grupos de 2). O trabalho se divide em duas
+partes; a Parte 1 vem primeiro porque as outras dependem dos dados e do pipeline.
+
+| Parte | Quem | Responsável por |
+|---|---|---|
+| 1. Dados e pipeline | Caio | EDA e escolha do subconjunto; divisões agrupadas por gravação; pré-processamento log-Mel; aumento de dados; M1 (CNN do zero, que também valida o pipeline); E2 e E3 |
+| 2. Modelos | Integrante 2 | M2 (CRNN); M3 (PANNs CNN14); M4 (AST, só se sobrar tempo e GPU); E1 e E4 |
+| Juntos | os dois | análise dos resultados, relatório IEEE e slides |
 
 ## Cronograma
 
@@ -128,13 +179,18 @@ Kaggle não permitem redistribuir os dados. O `.gitignore` já bloqueia esses ar
 | S5 | 11 a 17/11 | E2, E3, eficiência de dados (E4), análises, relatório |
 | S6 | 18 a 25/11 | relatório IEEE, slides, entrega final |
 
-Datas da disciplina: entrega da proposta em 03/11; apresentações em 01 e 03/12; entrega dos
-projetos em 10/12.
+Entrega final (slides, códigos e relatório): **25/11/2026**, conforme os slides de projetos do
+professor. Código em Python no Colab, com as bibliotecas usadas declaradas. Nota: 40%
+apresentação, 60% relatório e código.
 
 ## Pendências
 
-- [ ] Escolher a edição do BirdCLEF (as espécies e a região mudam a cada ano).
-- [ ] Confirmar a data da entrega final: a proposta diz 25/11, o calendário da disciplina diz 10/12.
-- [ ] Convidar Kaique e Giovanny como colaboradores do repositório.
+- [x] Edição do BirdCLEF: **2025** (Colômbia), filtrando só as aves. Em `dados/bruto/` ficam os
+  CSVs e o `train_audio/`; o `train_soundscapes/` (sem rótulo) não é usado.
+- [x] Data da entrega final: 25/11 (slides de projetos do professor).
+- [x] Parte 1: subconjunto, divisões, log-Mel, aumento, M1, E2 e E3 (resultados acima).
+- [ ] Parte 2: M2, M3, (M4), E1 e E4, reaproveitando `preproc`, `aumento`, `treino` e as mesmas
+  divisões. O E1 do M1 é `treino.treinar` com `fold_val` de 0 a 4 e `aumento.CONFIGS_E2["todas"]`.
+- [ ] Convidar o Integrante 2 como colaborador do repositório.
 - [ ] Criar a pasta compartilhada no Drive com o layout de `dados/`.
 - [ ] Decidir como carregar o PANNs CNN14 (código oficial ou pacote) e os pesos do AST.

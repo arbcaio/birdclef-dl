@@ -7,15 +7,15 @@ Layout esperado (o mesmo no Drive compartilhado e na máquina local):
 
 ```
 dados/
-  bruto/          # download do BirdCLEF: train_audio/, train_metadata.csv, ...
+  bruto/          # BirdCLEF 2025: train.csv, taxonomy.csv e train_audio/ (sem train_soundscapes/)
   ruido/          # ESC-50 (chuva, vento, insetos) para mistura de ruído
-  subconjunto/    # lista das espécies e gravações escolhidas (CSV gerado pela EDA)
+  subconjunto/    # divisoes.csv: gravações escolhidas, partição e fold (notebooks/01_eda)
   espectrogramas/ # log-Mel pré-computados, uma pasta por configuração
     mel128_32k/   # M1 e M2
     mel64_32k/    # M3 (PANNs)
     mel128_16k/   # M4 (AST)
-  divisoes/       # teste fixo e folds agrupados por gravação
 ```
 
-O CSV do subconjunto e o das divisões são pequenos e definem os experimentos; se o grupo quiser
-versioná-los, mova-os para `resultados/` em vez de abrir exceção aqui.
+O `divisoes.csv` é gerado de forma determinística (semente 42) pelo `notebooks/01_eda.ipynb`, a
+partir do `train.csv`; por isso não precisa ir para o git. Quem tiver os dados brutos o regenera
+idêntico.
