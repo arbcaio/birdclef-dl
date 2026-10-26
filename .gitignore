@@ -265,3 +265,9 @@ lightning_logs/
 *.blg
 *.fls
 *.fdb_latexmk
+
+# Exceções leves: predições no teste (números, sem áudio) e pesos do M1 (~1,5 MB cada).
+# Os pesos são derivados do treino, não redistribuem os dados; os CSVs com nomes de arquivo do
+# BirdCLEF (divisoes.csv, janelas.csv) continuam fora, pois são regeneráveis pelos notebooks.
+!resultados/**/*.npy
+!checkpoints/M1_*.pt
