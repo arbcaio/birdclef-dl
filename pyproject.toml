@@ -1,0 +1,12 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "birdclef"
+version = "0.1.0"
+description = "Classificação de aves pelo canto (BirdCLEF) - projeto de Deep Learning, UFPE 2026.2"
+requires-python = ">=3.10"
+
+[tool.setuptools.packages.find]
+where = ["src"]

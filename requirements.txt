@@ -1,0 +1,24 @@
+# Dependências do projeto. No Colab, torch, torchaudio, librosa, numpy, pandas, scikit-learn,
+# matplotlib e transformers já vêm instalados: não fixamos versão para não brigar com a imagem
+# do Colab. Rodar `pip install -r requirements.txt` e depois `pip install -e .`.
+
+# Modelos e treino
+torch
+torchaudio
+transformers        # AST (M4)
+
+# Áudio
+librosa
+soundfile
+
+# Dados, divisões e métricas
+numpy
+pandas
+scikit-learn
+
+# Visualização
+matplotlib
+
+# Utilitários
+tqdm
+kaggle              # download do BirdCLEF (precisa de kaggle.json, nunca versionado)

@@ -218,3 +218,50 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# ---------------------------------------------------------------
+# Projeto birdclef-dl
+# O repositório é público e as regras do Kaggle não permitem
+# redistribuir os dados: áudio, espectrogramas e pesos nunca entram.
+# ---------------------------------------------------------------
+
+# Dados (só o README da pasta é versionado)
+dados/*
+!dados/README.md
+
+# Áudio em qualquer lugar
+*.wav
+*.ogg
+*.flac
+*.mp3
+
+# Espectrogramas e arrays pré-computados
+*.npy
+*.npz
+*.h5
+*.hdf5
+
+# Pesos e checkpoints (os nossos e os pré-treinados baixados)
+checkpoints/*
+!checkpoints/.gitkeep
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+
+# Credenciais do Kaggle
+kaggle.json
+
+# Registros de treino
+runs/
+wandb/
+lightning_logs/
+
+# Arquivos auxiliares do LaTeX (proposta e relatório)
+*.aux
+*.out
+*.synctex.gz
+*.bbl
+*.blg
+*.fls
+*.fdb_latexmk
