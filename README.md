@@ -154,8 +154,22 @@ layout de `dados/`. Para baixar o BirdCLEF, cada um aceita as regras da competi�
 o próprio `kaggle.json` (nunca versionado). Treinar com precisão mista e salvar checkpoints no
 Drive, por causa dos limites de sessão do Colab.
 
-**Nada de dados, áudio, espectrogramas ou pesos no git:** o repositório é público e as regras do
+**Nada de dados, áudio ou espectrogramas no git:** o repositório é público e as regras do
 Kaggle não permitem redistribuir os dados. O `.gitignore` já bloqueia esses arquivos.
+
+> **Atenção: estes arquivos não estão no repositório e precisam ser gerados (ou copiados do Drive
+> compartilhado) antes de treinar:**
+>
+> | Arquivo | Por que fica fora | Como obter |
+> |---|---|---|
+> | `dados/bruto/` (BirdCLEF 2025) | regras da competição | aceitar as regras no Kaggle e baixar com o próprio `kaggle.json` |
+> | `dados/ruido/` (ESC-50) | áudio | baixar a ESC-50 (CC BY-NC) e extrair os folds usados |
+> | `dados/subconjunto/divisoes.csv` | nomes de arquivo do BirdCLEF | `notebooks/01_eda.ipynb` (determinístico, semente 42) |
+> | `dados/espectrogramas/mel128_32k/` (`X*.npy`, `R.npy`, `janelas*.csv`), ~3,3 GB | derivados dos áudios | `notebooks/02_preprocessamento.ipynb` (~10 min numa GPU de notebook) |
+>
+> Estão no git, por serem leves e não redistribuírem os dados: os pesos do M1 (`checkpoints/M1_*.pt`)
+> e as predições no teste (`resultados/e2/*.npy`). Quem tiver acesso aos dados nunca deve
+> compartilhá-los com quem não aceitou as regras do BirdCLEF.
 
 ## Divisão de tarefas
 
