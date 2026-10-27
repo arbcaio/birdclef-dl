@@ -179,7 +179,7 @@ partes; a Parte 1 vem primeiro porque as outras dependem dos dados e do pipeline
 | Parte | Quem | Responsável por |
 |---|---|---|
 | 1. Dados e pipeline | Caio | EDA e escolha do subconjunto; divisões agrupadas por gravação; pré-processamento log-Mel; aumento de dados; M1 (CNN do zero, que também valida o pipeline); E2 e E3 |
-| 2. Modelos | Integrante 2 | M2 (CRNN); M3 (PANNs CNN14); M4 (AST, só se sobrar tempo e GPU); E1 e E4 |
+| 2. Modelos | Giovanny Lira | M2 (CRNN); M3 (PANNs CNN14); M4 (AST, só se sobrar tempo e GPU); E1 e E4 |
 | Juntos | os dois | análise dos resultados, relatório IEEE e slides |
 
 ## Cronograma
@@ -205,6 +205,6 @@ apresentação, 60% relatório e código.
 - [x] Parte 1: subconjunto, divisões, log-Mel, aumento, M1, E2 e E3 (resultados acima).
 - [ ] Parte 2: M2, M3, (M4), E1 e E4, reaproveitando `preproc`, `aumento`, `treino` e as mesmas
   divisões. O E1 do M1 é `treino.treinar` com `fold_val` de 0 a 4 e `aumento.CONFIGS_E2["todas"]`.
-- [ ] Convidar o Integrante 2 como colaborador do repositório.
+- [ ] Convidar o Giovanny Lira como colaborador do repositório.
 - [ ] Criar a pasta compartilhada no Drive com o layout de `dados/`.
 - [ ] Decidir como carregar o PANNs CNN14 (código oficial ou pacote) e os pesos do AST.
